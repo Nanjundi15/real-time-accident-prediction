@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import joblib
 from tensorflow.keras.models import load_model
+import os
 
 app = Flask(__name__)
 
@@ -15,10 +16,13 @@ model_paths = {
     "LSTM": "lstm_model.h5"
 }
 
+# Load scaler
 scaler = joblib.load("new_scaler_logistic.pkl")
 
-# Load ML models
+# Load traditional ML models
 models = {name: joblib.load(path) for name, path in model_paths.items() if name != "LSTM"}
+
+# Load LSTM model
 lstm_model = load_model(model_paths["LSTM"])
 
 @app.route("/")
@@ -29,7 +33,12 @@ def home():
 def predict():
     try:
         data = request.json  # Get JSON input
-        df = pd.DataFrame([data])  # Convert to DataFrame
+
+        # Handle both dict input and list input
+        if "features" in data:
+            df = pd.DataFrame([data["features"]])  # If list format
+        else:
+            df = pd.DataFrame([data])  # If dictionary format
 
         # Scale input
         X_scaled = scaler.transform(df)
@@ -48,7 +57,8 @@ def predict():
         return jsonify(predictions)
 
     except Exception as e:
-        return jsonify({"error": str(e)})
+        return jsonify({"error": str(e)}), 400
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=True)
+    port = int(os.environ.get("PORT", 10000))  # Default to 10000 for Render
+    app.run(host="0.0.0.0", port=port)
